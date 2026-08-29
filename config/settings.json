@@ -1,0 +1,53 @@
+{
+  "keywords": [
+    "QA",
+    "SDET",
+    "Automation QA",
+    "Test Engineer",
+    "Quality Assurance",
+    "Quality Engineer",
+    "Software Test",
+    "Test Automation"
+  ],
+  "locations": [
+    "India",
+    "Remote"
+  ],
+  "india_location_aliases": [
+    "india",
+    "indian",
+    "bharat",
+    "bangalore",
+    "bengaluru",
+    "hyderabad",
+    "pune",
+    "chennai",
+    "mumbai",
+    "delhi",
+    "noida",
+    "gurgaon",
+    "gurugram",
+    "kolkata",
+    "ahmedabad",
+    "jaipur",
+    "kochi",
+    "cochin",
+    "thiruvananthapuram",
+    "trivandrum",
+    "coimbatore",
+    "indore",
+    "nagpur",
+    "mysore",
+    "mysuru",
+    "ncr",
+    "in-remote",
+    "remote-india"
+  ],
+  "request_timeout_seconds": 20,
+  "max_retries": 3,
+  "retry_backoff_seconds": 1.5,
+  "user_agent": "QA-Auto-Apply/1.0 (+https://github.com/Azmat01/QA_Auto_Apply)",
+  "output_formats": ["csv", "json"],
+  "notify_email": "azmatsparrow@gmail.com",
+  "notify_label": "QA-auto-apply"
+}

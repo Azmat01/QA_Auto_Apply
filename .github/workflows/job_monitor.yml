@@ -1,0 +1,88 @@
+name: Daily Job Monitor
+
+on:
+  schedule:
+    # 08:00 India Standard Time (02:30 UTC)
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  job_monitor:
+    name: Find QA jobs and notify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run job finder
+        env:
+          LOG_FORMAT: json
+          LOG_LEVEL: INFO
+          PYTHONUNBUFFERED: "1"
+        run: python job_finder.py --output-dir output
+
+      - name: Upload job listings
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-job-listings
+          path: |
+            output/jobs.csv
+            output/jobs.json
+            output/digest.md
+          if-no-files-found: error
+
+      - name: Ensure QA-auto-apply label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "QA-auto-apply" \
+            --color "0E8A16" \
+            --description "Daily QA / SDET job digest" \
+            || true
+
+      - name: Open GitHub issue digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          COUNT=$(python -c "import json; print(json.load(open('output/jobs.json')).get('count', 0))")
+          TITLE="[QA-auto-apply] ${DATE}: ${COUNT} QA jobs (India / Remote)"
+          if ! gh issue create \
+            --title "$TITLE" \
+            --label "QA-auto-apply" \
+            --assignee "${{ github.repository_owner }}" \
+            --body-file output/digest.md; then
+            echo "Assignee may be unavailable; creating issue without assignee"
+            gh issue create \
+              --title "$TITLE" \
+              --label "QA-auto-apply" \
+              --body-file output/digest.md
+          fi
+
+      - name: Email digest to azmatsparrow@gmail.com
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          LOG_FORMAT: json
+        run: |
+          if [ -z "${SMTP_USERNAME}" ] || [ -z "${SMTP_PASSWORD}" ]; then
+            echo "SMTP secrets are not configured. GitHub issue + assignment is the active notify channel."
+            echo "To also send Gmail, add SMTP_USERNAME and SMTP_PASSWORD (Gmail app password) repository secrets."
+            exit 0
+          fi
+          export SMTP_HOST="${SMTP_HOST:-smtp.gmail.com}"
+          export SMTP_PORT="${SMTP_PORT:-587}"
+          python job_finder.py --output-dir output --notify-only --send-email
