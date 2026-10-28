@@ -7,7 +7,13 @@
     "Quality Assurance",
     "Quality Engineer",
     "Software Test",
-    "Test Automation"
+    "Test Automation",
+    "Manual Tester",
+    "Manual QA",
+    "QA Tester",
+    "Quality Analyst",
+    "Test Analyst",
+    "QA Engineer"
   ],
   "locations": [
     "India",
@@ -43,6 +49,7 @@
     "in-remote",
     "remote-india"
   ],
+  "max_results": 10,
   "request_timeout_seconds": 20,
   "max_retries": 3,
   "retry_backoff_seconds": 1.5,

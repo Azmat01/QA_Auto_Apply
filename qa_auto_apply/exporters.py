@@ -35,38 +35,46 @@ def save_json(jobs: list[JobListing], path: Path) -> Path:
     return path
 
 
-def save_digest(jobs: list[JobListing], path: Path, *, email: str, label: str) -> Path:
+def save_digest(
+    jobs: list[JobListing],
+    path: Path,
+    *,
+    email: str,
+    label: str,
+    pool_size: int | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    scanned = pool_size if pool_size is not None else len(jobs)
     lines = [
-        f"# QA Auto-Apply digest ({generated})",
+        f"# Junior QA / Manual Tester digest ({generated})",
         "",
         f"- Label: `{label}`",
         f"- Notify: {email}",
-        f"- Matches: **{len(jobs)}**",
+        f"- Listed: **{len(jobs)}** (top 10 of {scanned} junior matches)",
         "",
     ]
     if not jobs:
-        lines.append("No matching QA / SDET / Test Engineer roles were found for India or Remote.")
+        lines.append(
+            "No matching junior QA Engineer / Manual Tester roles were found for India or Remote."
+        )
     else:
-        preview = jobs[:80]
         lines.extend(
             [
-                "| Company Name | Role | Location | Application URL |",
-                "| --- | --- | --- | --- |",
+                "| # | Company Name | Role | Location | Application URL |",
+                "| --- | --- | --- | --- | --- |",
             ]
         )
-        for job in preview:
+        for index, job in enumerate(jobs, start=1):
             role = _md_cell(job.role)
             location = _md_cell(job.location)
             company = _md_cell(job.company)
             url = job.application_url.replace("|", "\\|")
-            lines.append(f"| {company} | {role} | {location} | {url} |")
-        if len(jobs) > len(preview):
-            lines.append("")
-            lines.append(
-                f"_Showing {len(preview)} of {len(jobs)} matches. Full list is in `jobs.csv` / `jobs.json`._"
-            )
+            lines.append(f"| {index} | {company} | {role} | {location} | {url} |")
+        lines.append("")
+        lines.append("Apply links:")
+        for index, job in enumerate(jobs, start=1):
+            lines.append(f"{index}. [{_md_cell(job.company)} — {_md_cell(job.role)}]({job.application_url})")
     lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
     return path

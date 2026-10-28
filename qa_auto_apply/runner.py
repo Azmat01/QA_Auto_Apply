@@ -10,7 +10,7 @@ from pathlib import Path
 
 from qa_auto_apply.config import ROOT_DIR, load_companies, load_settings
 from qa_auto_apply.exporters import save_csv, save_digest, save_json
-from qa_auto_apply.filters import compile_keyword_regex, keep_listing
+from qa_auto_apply.filters import compile_keyword_regex, keep_listing, rank_key
 from qa_auto_apply import greenhouse, lever
 from qa_auto_apply.logging_setup import setup_logging
 from qa_auto_apply.models import JobListing
@@ -21,7 +21,7 @@ logger = logging.getLogger("qa_auto_apply.runner")
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Find QA / SDET jobs from public Greenhouse and Lever APIs.",
+        description="Find junior QA Engineer and Manual Tester jobs from Greenhouse and Lever.",
     )
     parser.add_argument(
         "--output-dir",
@@ -63,17 +63,12 @@ def run(argv: list[str] | None = None) -> int:
 
     if args.notify_only:
         digest_path = output_dir / "digest.md"
-        json_path = output_dir / "jobs.json"
-        count = 0
-        if json_path.is_file():
-            try:
-                count = int(json.loads(json_path.read_text(encoding="utf-8")).get("count") or 0)
-            except (OSError, ValueError, TypeError):
-                count = 0
-        return _maybe_email(args.send_email, digest_path, notify_email, notify_label, count)
+        jobs = _jobs_from_json(output_dir / "jobs.json")
+        return _maybe_email(args.send_email, digest_path, notify_email, notify_label, jobs)
 
     keyword_re = compile_keyword_regex(settings.get("keywords") or [])
     india_aliases = settings.get("india_location_aliases") or []
+    max_results = max(1, int(settings.get("max_results") or 10))
     timeout = float(settings.get("request_timeout_seconds") or 20)
     max_retries = int(settings.get("max_retries") or 3)
     backoff = float(settings.get("retry_backoff_seconds") or 1.5)
@@ -117,28 +112,49 @@ def run(argv: list[str] | None = None) -> int:
         _collect(listings, matched, seen, keyword_re, india_aliases)
         time.sleep(0.15)
 
-    matched.sort(key=lambda job: (job.company.lower(), job.role.lower()))
+    matched.sort(key=lambda job: rank_key(job, india_aliases))
+    selected = matched[:max_results]
 
-    output_dir = Path(args.output_dir)
-    csv_path = save_csv(matched, output_dir / "jobs.csv")
-    json_path = save_json(matched, output_dir / "jobs.json")
+    csv_path = save_csv(selected, output_dir / "jobs.csv")
+    json_path = save_json(selected, output_dir / "jobs.json")
     digest_path = save_digest(
-        matched,
+        selected,
         output_dir / "digest.md",
         email=notify_email,
         label=notify_label,
+        pool_size=len(matched),
     )
 
     logger.info(
-        "Wrote results",
-        extra={"matched": len(matched), "url": str(output_dir)},
+        "Wrote top %s of %s junior matches",
+        len(selected),
+        len(matched),
+        extra={"matched": len(selected), "url": str(output_dir)},
     )
     logger.info("CSV: %s", csv_path)
     logger.info("JSON: %s", json_path)
     logger.info("Digest: %s", digest_path)
     logger.info("Companies with hard failures: %s", errors)
 
-    return _maybe_email(args.send_email, digest_path, notify_email, notify_label, len(matched))
+    return _maybe_email(args.send_email, digest_path, notify_email, notify_label, selected)
+
+
+def _jobs_from_json(path: Path) -> list[JobListing]:
+    if not path.is_file():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        logger.exception("Could not read jobs JSON for email")
+        return []
+    rows = payload.get("jobs") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return []
+    jobs: list[JobListing] = []
+    for row in rows:
+        if isinstance(row, dict):
+            jobs.append(JobListing.from_row(row))
+    return jobs
 
 
 def _maybe_email(
@@ -146,7 +162,7 @@ def _maybe_email(
     digest_path: Path,
     notify_email: str,
     notify_label: str,
-    job_count: int,
+    jobs: list[JobListing],
 ) -> int:
     if not send_email:
         return 0
@@ -154,8 +170,8 @@ def _maybe_email(
         send_digest_email(
             digest_path,
             to_address=notify_email,
-            subject=f"[{notify_label}] {job_count} QA jobs (India / Remote)",
-            job_count=job_count,
+            subject=f"[{notify_label}] {len(jobs)} junior QA / Manual Tester jobs (India / Remote)",
+            jobs=jobs,
         )
     except Exception:
         logger.exception("Email notification failed")
@@ -179,7 +195,7 @@ def _collect(
         seen.add(identity)
         matched.append(listing)
         logger.info(
-            "Matched job",
+            "Matched junior job",
             extra={
                 "company": listing.company,
                 "role": listing.role,

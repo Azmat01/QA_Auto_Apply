@@ -8,10 +8,11 @@ from urllib.parse import quote
 
 from qa_auto_apply.http_client import HttpError, get_json
 from qa_auto_apply.models import JobListing
+from qa_auto_apply.textutil import html_to_text
 
 logger = logging.getLogger("qa_auto_apply.greenhouse")
 
-GREENHOUSE_JOBS_URL = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs"
+GREENHOUSE_JOBS_URL = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
 
 
 def fetch_jobs(
@@ -110,6 +111,7 @@ def _to_listing(company_name: str, job: dict[str, Any]) -> JobListing | None:
         location = ", ".join(part for part in names if part)
 
     job_id = str(job.get("id") or "")
+    description = html_to_text(str(job.get("content") or ""))
     return JobListing(
         company=company_name,
         role=title,
@@ -117,4 +119,5 @@ def _to_listing(company_name: str, job: dict[str, Any]) -> JobListing | None:
         application_url=apply_url,
         source="greenhouse",
         job_id=job_id,
+        description=description,
     )

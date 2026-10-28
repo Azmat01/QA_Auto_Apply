@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 from qa_auto_apply.http_client import HttpError, get_json
 from qa_auto_apply.models import JobListing
+from qa_auto_apply.textutil import html_to_text
 
 logger = logging.getLogger("qa_auto_apply.lever")
 
@@ -109,7 +110,25 @@ def _to_listing(company_name: str, job: dict[str, Any]) -> JobListing | None:
         application_url=apply_url,
         source="lever",
         job_id=str(job.get("id") or ""),
+        description=_lever_description(job),
     )
+
+
+def _lever_description(job: dict[str, Any]) -> str:
+    parts: list[str] = []
+    plain = str(job.get("descriptionPlain") or "").strip()
+    if plain:
+        parts.append(plain)
+    else:
+        parts.append(html_to_text(str(job.get("description") or "")))
+    lists = job.get("lists") or []
+    if isinstance(lists, list):
+        for section in lists:
+            if not isinstance(section, dict):
+                continue
+            parts.append(str(section.get("text") or "").strip())
+            parts.append(html_to_text(str(section.get("content") or "")))
+    return html_to_text(" ".join(part for part in parts if part))
 
 
 def extra_location_fields(job: dict[str, Any]) -> tuple[str, str]:

@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   job_monitor:
-    name: Find QA jobs and notify
+    name: Find junior QA jobs and notify
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -46,7 +46,7 @@ jobs:
         run: |
           gh label create "QA-auto-apply" \
             --color "0E8A16" \
-            --description "Daily QA / SDET job digest" \
+            --description "Daily junior QA / Manual Tester digest" \
             || true
 
       - name: Open GitHub issue digest
@@ -56,7 +56,7 @@ jobs:
         run: |
           DATE=$(date -u +%Y-%m-%d)
           COUNT=$(python -c "import json; print(json.load(open('output/jobs.json')).get('count', 0))")
-          TITLE="[QA-auto-apply] ${DATE}: ${COUNT} QA jobs (India / Remote)"
+          TITLE="[QA-auto-apply] ${DATE}: ${COUNT} junior QA / Manual Tester jobs (India / Remote)"
           if ! gh issue create \
             --title "$TITLE" \
             --label "QA-auto-apply" \
