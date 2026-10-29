@@ -293,6 +293,13 @@
     });
   }
 
+  function normalizeSupabaseUrl(url) {
+    let value = String(url || "").trim();
+    // Common typo that broke the live dashboard: https//:host → https://host
+    value = value.replace(/^https\/\/:/i, "https://").replace(/^http\/\/:/i, "http://");
+    return value;
+  }
+
   function isValidSupabaseUrl(url) {
     try {
       const parsed = new URL(url);
@@ -303,7 +310,9 @@
   }
 
   function createClient() {
-    const cfg = window.SUPABASE_CONFIG || {};
+    const cfg = { ...(window.SUPABASE_CONFIG || {}) };
+    cfg.url = normalizeSupabaseUrl(cfg.url);
+    window.SUPABASE_CONFIG = cfg;
     if (!cfg.url || !cfg.anonKey) {
       showSetupBanner(
         `<strong>Connect Supabase.</strong> Set <code>url</code> and <code>anonKey</code> in

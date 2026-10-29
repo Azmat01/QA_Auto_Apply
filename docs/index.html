@@ -154,7 +154,14 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./config.js"></script>
-    <script src="./app.js"></script>
+    <!-- Inline config avoids stale cached config.js on GitHub Pages -->
+    <script>
+      window.SUPABASE_CONFIG = {
+        url: "https://gstjnmduuevtwlybaldm.supabase.co",
+        anonKey: "sb_publishable_zxQP2aJ4Z79OuDo-0YvWPA_MwDBWBu_",
+        table: "job_postings",
+      };
+    </script>
+    <script src="./app.js?v=20261029b"></script>
   </body>
 </html>
