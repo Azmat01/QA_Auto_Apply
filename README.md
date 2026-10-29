@@ -94,12 +94,24 @@ Static SPA in [`docs/`](docs/): HTML, Tailwind (CDN), custom CSS, and vanilla JS
 
 `id`, `title`, `url`, `description`, `date`, `is_applied`
 
+### How data flows
+
+The daily script does **not** write HTML. It emails / opens a GitHub issue from `output/jobs.json`, and (when configured) **upserts the same jobs into Supabase**. The Pages dashboard only reads Supabase — so if sync secrets are missing, you can get email with jobs while the website stays empty.
+
+```text
+job_finder.py  →  email + GitHub issue
+               →  Supabase job_postings  →  GitHub Pages dashboard
+```
+
 ### Setup
 
-1. Create a Supabase project and run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor.
-2. Put **Project URL** and **anon public** key in [`docs/config.js`](docs/config.js) (see [`docs/config.example.js`](docs/config.example.js)).
-3. On GitHub: **Settings → Pages → Deploy from a branch → `/docs`** (branch `main`).
-4. Open the Pages URL. Use **To Apply** / **Applied** tabs; each card’s toggle updates Supabase and moves the job between lists without a reload.
+1. Create a Supabase project and run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor (includes a unique index on `url` for upserts).
+2. Put **Project URL** and **anon / publishable** key in [`docs/config.js`](docs/config.js). The URL must look like `https://YOUR_PROJECT.supabase.co` (not `https//:`).
+3. Add the same values as GitHub Actions secrets so the daily run can fill the table:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY` (or `SUPABASE_SERVICE_ROLE_KEY`)
+4. On GitHub: **Settings → Pages → Deploy from a branch → `/docs`** (branch `main`).
+5. Re-run **Actions → Daily Job Monitor**, then refresh the Pages URL.
 
 Local preview:
 

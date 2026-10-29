@@ -14,6 +14,8 @@ create table if not exists public.job_postings (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+-- Required so the daily script can upsert by application URL without wiping is_applied
+create unique index if not exists job_postings_url_key on public.job_postings (url);
 create index if not exists job_postings_date_idx on public.job_postings (date desc);
 create index if not exists job_postings_is_applied_idx on public.job_postings (is_applied);
 
@@ -35,7 +37,7 @@ execute function public.set_updated_at();
 
 alter table public.job_postings enable row level security;
 
--- Public read + update for the static dashboard (anon key).
+-- Public read + write for the static dashboard + GitHub Action sync (anon / publishable key).
 -- Tighten these policies if you later add auth.
 drop policy if exists "Allow public read job_postings" on public.job_postings;
 create policy "Allow public read job_postings"
@@ -76,4 +78,4 @@ values
     (timezone('utc', now()) - interval '1 day')::date,
     false
   )
-on conflict do nothing;
+on conflict (url) do nothing;

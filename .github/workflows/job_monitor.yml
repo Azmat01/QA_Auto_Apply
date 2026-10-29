@@ -23,12 +23,21 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run job finder
+      - name: Run job finder and sync to Supabase dashboard
         env:
           LOG_FORMAT: json
           LOG_LEVEL: INFO
           PYTHONUNBUFFERED: "1"
-        run: python job_finder.py --output-dir output
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_TABLE: job_postings
+        run: |
+          if [ -z "${SUPABASE_URL}" ] || { [ -z "${SUPABASE_ANON_KEY}" ] && [ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]; }; then
+            echo "Warning: Supabase secrets missing. Email/issue will still run, but the GitHub Pages dashboard will stay empty."
+            echo "Add SUPABASE_URL and SUPABASE_ANON_KEY (or SUPABASE_SERVICE_ROLE_KEY) under Settings → Secrets → Actions."
+          fi
+          python job_finder.py --output-dir output
 
       - name: Upload job listings
         uses: actions/upload-artifact@v4

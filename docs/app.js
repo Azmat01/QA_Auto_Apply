@@ -293,6 +293,15 @@
     });
   }
 
+  function isValidSupabaseUrl(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "https:" && parsed.hostname.endsWith(".supabase.co");
+    } catch {
+      return false;
+    }
+  }
+
   function createClient() {
     const cfg = window.SUPABASE_CONFIG || {};
     if (!cfg.url || !cfg.anonKey) {
@@ -308,20 +317,36 @@
       return null;
     }
 
+    if (!isValidSupabaseUrl(cfg.url)) {
+      showError(
+        `Invalid Supabase URL in config.js: "${cfg.url}". Expected https://YOUR_PROJECT.supabase.co`
+      );
+      return null;
+    }
+
     if (!window.supabase || typeof window.supabase.createClient !== "function") {
       showError("Supabase JS SDK failed to load. Check your network or CDN.");
       return null;
     }
 
-    return window.supabase.createClient(cfg.url, cfg.anonKey);
+    try {
+      return window.supabase.createClient(cfg.url, cfg.anonKey);
+    } catch (err) {
+      showError(`Could not create Supabase client: ${err?.message || err}`);
+      return null;
+    }
   }
 
   function init() {
-    bindEvents();
-    state.client = createClient();
-    if (!state.client) return;
-    setStatus("Connected", "ready");
-    fetchJobs();
+    try {
+      bindEvents();
+      state.client = createClient();
+      if (!state.client) return;
+      setStatus("Connected", "ready");
+      fetchJobs();
+    } catch (err) {
+      showError(`Dashboard failed to start: ${err?.message || err}`);
+    }
   }
 
   init();

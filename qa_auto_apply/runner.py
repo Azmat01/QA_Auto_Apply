@@ -15,6 +15,7 @@ from qa_auto_apply import greenhouse, lever
 from qa_auto_apply.logging_setup import setup_logging
 from qa_auto_apply.models import JobListing
 from qa_auto_apply.notifier import send_digest_email
+from qa_auto_apply.supabase_sync import SupabaseSyncError, sync_jobs_to_supabase
 
 logger = logging.getLogger("qa_auto_apply.runner")
 
@@ -37,6 +38,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--notify-only",
         action="store_true",
         help="Skip fetching and only email the existing digest in --output-dir.",
+    )
+    parser.add_argument(
+        "--skip-supabase",
+        action="store_true",
+        help="Do not push results to Supabase even if SUPABASE_URL is set.",
     )
     parser.add_argument(
         "--log-level",
@@ -135,6 +141,15 @@ def run(argv: list[str] | None = None) -> int:
     logger.info("JSON: %s", json_path)
     logger.info("Digest: %s", digest_path)
     logger.info("Companies with hard failures: %s", errors)
+
+    if not args.skip_supabase:
+        try:
+            synced = sync_jobs_to_supabase(selected)
+            if synced:
+                logger.info("Dashboard sync: %s rows upserted into Supabase", synced)
+        except SupabaseSyncError:
+            logger.exception("Supabase dashboard sync failed")
+            return 1
 
     return _maybe_email(args.send_email, digest_path, notify_email, notify_label, selected)
 

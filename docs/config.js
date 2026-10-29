@@ -8,7 +8,8 @@
  * The anon key is safe to expose in a static site when RLS is enabled.
  */
 window.SUPABASE_CONFIG = {
-  url: "https//:gstjnmduuevtwlybaldm.supabase.co",
+  // Must be https://PROJECT_REF.supabase.co (note the :// order)
+  url: "https://gstjnmduuevtwlybaldm.supabase.co",
   anonKey: "sb_publishable_zxQP2aJ4Z79OuDo-0YvWPA_MwDBWBu_",
   table: "job_postings",
 };
