@@ -61,21 +61,5 @@ for insert
 to anon, authenticated
 with check (true);
 
--- Optional sample rows so the UI is not empty on first load
-insert into public.job_postings (title, url, description, date, is_applied)
-values
-  (
-    'Junior QA Engineer',
-    'https://example.com/jobs/junior-qa',
-    'Entry-level QA role. 0-1 years. Manual + light automation. India / Remote.',
-    (timezone('utc', now()))::date,
-    false
-  ),
-  (
-    'Manual Tester - Fresher',
-    'https://example.com/jobs/manual-tester',
-    'Campus hire. Manual testing for web apps. Bengaluru.',
-    (timezone('utc', now()) - interval '1 day')::date,
-    false
-  )
-on conflict (url) do nothing;
+-- Do not seed example.com rows. Real openings are inserted by job_finder.py
+-- when SUPABASE_URL and SUPABASE_ANON_KEY are set.

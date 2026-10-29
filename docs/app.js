@@ -170,7 +170,7 @@
       els.emptyCopy.textContent =
         state.filter === "applied"
           ? "No applied jobs yet. Toggle a card in To Apply to move it here."
-          : "Nothing left to apply. Switch to Applied or refresh after new syncs.";
+          : "No junior QA / Manual Tester openings with real apply links right now. The daily script will add Greenhouse/Lever URLs when matches are found.";
       return;
     }
 
@@ -216,7 +216,15 @@
       return;
     }
 
-    state.jobs = (data || []).map(normalizeJob);
+    state.jobs = (data || [])
+      .map(normalizeJob)
+      .filter((job) => {
+        const url = String(job.url || "").toLowerCase();
+        const title = String(job.title || "").toLowerCase();
+        if (url.includes("example.com")) return false;
+        if (title.startsWith("no live junior")) return false;
+        return true;
+      });
     setStatus(`${state.jobs.length} jobs`, "ready");
     render();
   }

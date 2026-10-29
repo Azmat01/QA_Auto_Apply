@@ -78,28 +78,32 @@ _JUNIOR_TITLE_RE = re.compile(
     | \bassociate\b
     | \bentry[\s-]?level\b
     | \bnew\s+grad(?:uate)?\b
-    | \b0\s*[-–to]+\s*1\s*years?\b
+    | \b0\s*[-–to]+\s*[12]\s*years?\b
     | \b0\s*years?\b
+    | \b1\s*year\b
     | \b(?:0\s*[-–to]+\s*)?6\s*months?\b
+    | \bfreshers?\b
     """,
     re.IGNORECASE | re.VERBOSE,
 )
 
 _JUNIOR_DESCRIPTION_RE = re.compile(
     r"""
-    \b(?:fresher|intern|internship|trainee|apprentice)\b
+    \b(?:fresher|freshers|intern|internship|trainee|apprentice)\b
     | \bjunior\b
     | \bentry[\s-]?level\b
     | \bnew\s+grad(?:uate)?\b
     | \bfresh\s+graduate\b
     | \bcampus\s+(?:hire|hiring|recruit(?:ment)?|graduate|drive)\b
     | \bassociate\s+(?:qa|quality|test|sdet|engineer|tester)\b
-    | \b0\s*[-–to]+\s*1\s*years?\b
+    | \b0\s*[-–to]+\s*[12]\s*years?\b
     | \b0\s*[-–]\s*12\s*months?\b
     | \b0\s*years?\b
+    | \b1\s*year\b
     | \b(?:0\s*[-–to]+\s*)?6\s*months?\b
     | \bno\s+(?:prior\s+)?experience\s+required\b
-    | \bless\s+than\s+(?:one|1)\s+year\b
+    | \bless\s+than\s+(?:one|1|two|2)\s+years?\b
+    | \bminimum\s+(?:0|1)\s*years?\b
     """,
     re.IGNORECASE | re.VERBOSE,
 )

@@ -76,19 +76,34 @@ def sync_jobs_to_supabase(
     if not payload:
         return 0
 
-    existing = _fetch_url_index(base_url, key, table_name)
+    existing = _fetch_rows(base_url, key, table_name)
+    by_url = {str(row["url"]): str(row["id"]) for row in existing if row.get("url") and row.get("id")}
+    placeholders = [
+        str(row["id"])
+        for row in existing
+        if "example.com" in str(row.get("url") or "").lower()
+    ]
+
     inserted = 0
     updated = 0
 
     for row in payload:
         apply_url = row["url"]
-        existing_id = existing.get(apply_url)
+        existing_id = by_url.get(apply_url)
         if existing_id:
             _patch_job(base_url, key, table_name, existing_id, row)
             updated += 1
-        else:
-            _insert_job(base_url, key, table_name, row)
-            inserted += 1
+            continue
+
+        if placeholders:
+            placeholder_id = placeholders.pop(0)
+            _patch_job(base_url, key, table_name, placeholder_id, {**row, "replace_url": True})
+            by_url[apply_url] = placeholder_id
+            updated += 1
+            continue
+
+        _insert_job(base_url, key, table_name, row)
+        inserted += 1
 
     logger.info(
         "Synced jobs to Supabase (%s inserted, %s updated)",
@@ -137,17 +152,13 @@ def _request(
         raise SupabaseSyncError(f"Supabase network error: {exc}") from exc
 
 
-def _fetch_url_index(base_url: str, key: str, table: str) -> dict[str, str]:
+def _fetch_rows(base_url: str, key: str, table: str) -> list[dict[str, Any]]:
     endpoint = (
         f"{base_url}/rest/v1/{urllib.parse.quote(table)}"
         f"?select=id,url&limit=1000"
     )
     rows = _request(endpoint, key=key) or []
-    index: dict[str, str] = {}
-    for row in rows:
-        if isinstance(row, dict) and row.get("url") and row.get("id"):
-            index[str(row["url"])] = str(row["id"])
-    return index
+    return [row for row in rows if isinstance(row, dict)]
 
 
 def _insert_job(base_url: str, key: str, table: str, row: dict[str, Any]) -> None:
@@ -184,6 +195,9 @@ def _patch_job(
         "description": row.get("description") or "",
         "date": row["date"],
     }
+    if row.get("replace_url"):
+        payload["url"] = row["url"]
+        payload["is_applied"] = False
     _request(
         endpoint,
         key=key,
