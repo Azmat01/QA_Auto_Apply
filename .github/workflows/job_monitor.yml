@@ -77,7 +77,7 @@ jobs:
         run: |
           DATE=$(date -u +%Y-%m-%d)
           COUNT=$(python -c "import json; print(json.load(open('output/jobs.json')).get('count', 0))")
-          TITLE="[QA-auto-apply] ${DATE}: ${COUNT} remote QA / intern roles (0-1 yr)"
+          TITLE="[QA-auto-apply] ${DATE}: ${COUNT} QA roles (3 office / 2 India WFH / 5 intl WFH)"
           if ! gh issue create \
             --title "$TITLE" \
             --label "QA-auto-apply" \

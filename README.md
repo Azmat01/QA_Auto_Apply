@@ -1,6 +1,6 @@
 # QA Auto Apply
 
-Python job finder that queries the **public** Greenhouse Job Board API and Lever Postings API for a **configured company list** (not the whole internet), keeps QA Engineer / Manual Tester roles in **India** or **Remote**, drops Senior/Staff/Lead titles by default, writes the **top 10** to CSV and JSON, and emails the apply URLs to `azmatsparrow@gmail.com`.
+Python job finder that queries the **public** Greenhouse Job Board API and Lever Postings API for a **configured company list** (not the whole internet), keeps junior QA / Manual Tester roles, selects a daily mix of **10 jobs** (3 preferred-city office + 2 India WFH + 5 international WFH), writes them to CSV and JSON, and emails the apply URLs to `azmatsparrow@gmail.com`.
 
 A GitHub Actions workflow (`.github/workflows/job_monitor.yml`) runs the finder every day, opens an issue labeled `QA-auto-apply`, and can email the digest.
 
@@ -33,10 +33,12 @@ On Linux / macOS: `LOG_FORMAT=json python job_finder.py`
 
 - **Role:** QA / Manual Tester / SDET titles, including **QA Intern** and testing internships.
 - **Experience:** `junior_only` — fresher, intern, 0–1 years (Senior/Staff/Lead dropped).
-- **Workplace:** **Remote / work-from-home only**.
-- **Regions:** Europe, Americas, Arabian/Gulf, South East Asia, South Asia, Australia (when a place is named).
+- **Daily mix (10):** `daily_quotas` in settings —
+  - **3** office jobs in preferred cities (Noida, Gurgaon/Gurugram, Jaipur, Lucknow, Bhopal, Pune, Mumbai, Kochi, Hyderabad, Amritsar, Zirakpur, Varanasi, …)
+  - **2** work-from-home jobs in India
+  - **5** work-from-home jobs outside India (Europe, Americas, Arabian/Gulf, SE Asia, Australia, …)
 - **Blocked countries:** Pakistan, Egypt, Argentina (and major cities there).
-- **Cap:** Best 10 (internships ranked first).
+- Internships are ranked first within each bucket.
 
 Configured in [`config/settings.json`](config/settings.json). This script cannot search Naukri/LinkedIn/Indeed — only public Greenhouse/Lever boards in `config/companies.json`.
 
@@ -45,7 +47,7 @@ Configured in [`config/settings.json`](config/settings.json). This script cannot
 Edit these files — no code changes required:
 
 - `config/companies.json` — Greenhouse `board_token` values (from `boards.greenhouse.io/{token}`) and Lever `site` slugs (from `jobs.lever.co/{site}`)
-- `config/settings.json` — keywords, `max_results`, location aliases, timeouts, notify email, and label
+- `config/settings.json` — keywords, `daily_quotas`, `preferred_office_cities`, timeouts, notify email, and label
 
 The finder skips missing boards (HTTP 404) and retries transient errors (429 / 5xx) with backoff.
 

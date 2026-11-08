@@ -71,19 +71,19 @@ def _email_bodies(
 ) -> tuple[str, str]:
     if not jobs:
         plain = (
-            f"{count} junior QA / Manual Tester roles (India or Remote).\n\n"
+            f"{count} junior QA roles (3 office / 2 India WFH / 5 intl WFH).\n\n"
             "No matching openings were found in this run.\n"
         )
         if digest:
             plain += f"\n{digest}\n"
         html_body = (
             "<p>No matching junior QA Engineer / Manual Tester openings "
-            "were found for India or Remote.</p>"
+            "were found for the daily office + WFH quotas.</p>"
         )
         return plain, html_body
 
     plain_lines = [
-        f"{count} junior QA / Manual Tester roles (India or Remote).",
+        f"{count} junior QA roles (3 office / 2 India WFH / 5 intl WFH).",
         "",
         "Apply using the URLs below:",
         "",
@@ -105,7 +105,7 @@ def _email_bodies(
         )
 
     html_body = (
-        "<p>Junior QA Engineer / Manual Tester openings in India or Remote.</p>"
+        "<p>Junior QA roles — target mix: 3 preferred-city office / 2 India WFH / 5 intl WFH.</p>"
         f"<ol>{''.join(items)}</ol>"
     )
     return "\n".join(plain_lines), html_body

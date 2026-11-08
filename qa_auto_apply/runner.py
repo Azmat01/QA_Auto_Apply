@@ -10,7 +10,7 @@ from pathlib import Path
 
 from qa_auto_apply.config import ROOT_DIR, load_companies, load_settings
 from qa_auto_apply.exporters import save_csv, save_dashboard_json, save_digest, save_json
-from qa_auto_apply.filters import compile_keyword_regex, keep_listing, rank_key
+from qa_auto_apply.filters import compile_keyword_regex, keep_listing, select_by_quotas
 from qa_auto_apply import greenhouse, lever
 from qa_auto_apply.logging_setup import setup_logging
 from qa_auto_apply.models import JobListing
@@ -74,18 +74,23 @@ def run(argv: list[str] | None = None) -> int:
 
     keyword_re = compile_keyword_regex(settings.get("keywords") or [])
     india_aliases = settings.get("india_location_aliases") or []
+    preferred_office_cities = settings.get("preferred_office_cities") or []
     experience_mode = str(settings.get("experience_mode") or "junior_only")
-    require_remote = bool(settings.get("require_remote", True))
     blocked_countries = settings.get("blocked_countries") or []
     allowed_regions = settings.get("allowed_regions") or []
+    daily_quotas = settings.get("daily_quotas") or {
+        "india_office": 3,
+        "india_wfh": 2,
+        "intl_wfh": 5,
+    }
     filter_kwargs = {
         "india_aliases": india_aliases,
         "experience_mode": experience_mode,
-        "require_remote": require_remote,
+        "preferred_office_cities": preferred_office_cities,
         "blocked_countries": blocked_countries,
         "allowed_regions": allowed_regions,
+        "require_remote": None,
     }
-    max_results = max(1, int(settings.get("max_results") or 10))
     timeout = float(settings.get("request_timeout_seconds") or 20)
     max_retries = int(settings.get("max_retries") or 3)
     backoff = float(settings.get("retry_backoff_seconds") or 1.5)
@@ -134,8 +139,14 @@ def run(argv: list[str] | None = None) -> int:
         _collect(listings, matched, seen, keyword_re, filter_kwargs)
         time.sleep(0.15)
 
-    matched.sort(key=lambda job: rank_key(job, india_aliases))
-    selected = matched[:max_results]
+    selected = select_by_quotas(
+        matched,
+        daily_quotas,
+        india_aliases=india_aliases,
+        preferred_office_cities=preferred_office_cities,
+        blocked_countries=blocked_countries,
+        allowed_regions=allowed_regions,
+    )
 
     csv_path = save_csv(selected, output_dir / "jobs.csv")
     json_path = save_json(selected, output_dir / "jobs.json")
@@ -149,10 +160,10 @@ def run(argv: list[str] | None = None) -> int:
     dashboard_path = save_dashboard_json(selected, ROOT_DIR / "docs" / "data" / "jobs.json")
 
     logger.info(
-        "Wrote top %s of %s matches (mode=%s)",
+        "Wrote %s of %s matches using quotas %s",
         len(selected),
         len(matched),
-        experience_mode,
+        daily_quotas,
         extra={"matched": len(selected), "url": str(output_dir)},
     )
     logger.info("CSV: %s", csv_path)
@@ -204,7 +215,7 @@ def _maybe_email(
         send_digest_email(
             digest_path,
             to_address=notify_email,
-            subject=f"[{notify_label}] {len(jobs)} remote QA / intern roles (0-1 yr)",
+            subject=f"[{notify_label}] {len(jobs)} QA roles (3 office / 2 India WFH / 5 intl WFH)",
             jobs=jobs,
         )
     except Exception:

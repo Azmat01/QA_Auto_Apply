@@ -90,13 +90,14 @@ def save_digest(
         "",
         f"- Label: `{label}`",
         f"- Notify: {email}",
-        f"- Listed: **{len(jobs)}** (top 10 of {scanned} matches)",
+        f"- Listed: **{len(jobs)}** (quota pick from {scanned} matches; "
+        "target 3 office / 2 India WFH / 5 intl WFH)",
         "",
     ]
     if not jobs:
         lines.append(
-            "No matching remote QA / Manual Tester / internship roles (0-1 years) were found "
-            "on the configured Greenhouse/Lever boards for allowed regions."
+            "No matching junior QA / Manual Tester / internship roles were found "
+            "for the configured office cities or WFH regions on Greenhouse/Lever boards."
         )
     else:
         lines.extend(

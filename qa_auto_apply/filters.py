@@ -27,6 +27,13 @@ DEFAULT_INDIA_ALIASES = frozenset(
         "jaipur",
         "kochi",
         "cochin",
+        "lucknow",
+        "bhopal",
+        "amritsar",
+        "zirakpur",
+        "zirkarpur",
+        "varanasi",
+        "banaras",
         "thiruvananthapuram",
         "trivandrum",
         "coimbatore",
@@ -289,46 +296,81 @@ def is_junior_role(title: str, description: str = "") -> bool:
     return description_looks_junior(description)
 
 
+def classify_location_bucket(
+    location: str,
+    *,
+    workplace_type: str = "",
+    country: str = "",
+    india_aliases: Iterable[str] | None = None,
+    preferred_office_cities: Iterable[str] | None = None,
+    blocked_countries: Iterable[str] | None = None,
+    allowed_regions: Iterable[str] | None = None,
+) -> str | None:
+    """Classify a posting into india_office, india_wfh, intl_wfh, or None."""
+    haystack = " ".join(part for part in (location, workplace_type, country) if part).lower()
+    if not haystack.strip():
+        return None
+    if _is_blocked(haystack, blocked_countries):
+        return None
+
+    remote = _is_remote(haystack)
+    india = _is_india(haystack, india_aliases) or country.strip().upper() in {"IN", "IND"}
+
+    if remote:
+        if india:
+            return "india_wfh"
+        if not _has_explicit_geo(haystack):
+            return "intl_wfh"
+        if _matches_allowed_region(haystack, allowed_regions, india_aliases):
+            # South Asia remote that isn't India still counts as intl unless India matched.
+            return "intl_wfh"
+        return None
+
+    # Office / on-site / hybrid without remote wording.
+    if _matches_preferred_city(haystack, preferred_office_cities):
+        return "india_office"
+    return None
+
+
 def matches_location(
     location: str,
     *,
     workplace_type: str = "",
     country: str = "",
     india_aliases: Iterable[str] | None = None,
-    require_remote: bool = True,
+    preferred_office_cities: Iterable[str] | None = None,
     blocked_countries: Iterable[str] | None = None,
     allowed_regions: Iterable[str] | None = None,
+    require_remote: bool | None = None,
     allow_remote: bool = True,
     allow_india: bool = True,
 ) -> bool:
-    """Return True for remote/WFH roles in allowed regions, excluding blocked countries."""
-    haystack = " ".join(part for part in (location, workplace_type, country) if part).lower()
-    if not haystack.strip():
-        return False
+    """Return True when the posting fits any configured daily quota bucket."""
+    del allow_remote, allow_india  # kept for call-site compatibility
+    if require_remote is True:
+        bucket = classify_location_bucket(
+            location,
+            workplace_type=workplace_type,
+            country=country,
+            india_aliases=india_aliases,
+            preferred_office_cities=preferred_office_cities,
+            blocked_countries=blocked_countries,
+            allowed_regions=allowed_regions,
+        )
+        return bucket in {"india_wfh", "intl_wfh"}
 
-    if _is_blocked(haystack, blocked_countries):
-        return False
-
-    remote = allow_remote and _is_remote(haystack)
-    if require_remote and not remote:
-        return False
-
-    # Pure remote / worldwide / WFH with no blocked country is OK.
-    if remote and not _has_explicit_geo(haystack):
-        return True
-
-    if remote and _matches_allowed_region(haystack, allowed_regions, india_aliases):
-        return True
-
-    # Non-remote path only when require_remote is False (legacy).
-    if not require_remote:
-        if allow_india and country.strip().upper() in {"IN", "IND"}:
-            return True
-        if allow_india and _is_india(haystack, india_aliases):
-            return True
-
-    return False
-
+    return (
+        classify_location_bucket(
+            location,
+            workplace_type=workplace_type,
+            country=country,
+            india_aliases=india_aliases,
+            preferred_office_cities=preferred_office_cities,
+            blocked_countries=blocked_countries,
+            allowed_regions=allowed_regions,
+        )
+        is not None
+    )
 
 def location_is_india(
     location: str,
@@ -424,11 +466,12 @@ def keep_listing(
     country: str = "",
     india_aliases: Iterable[str] | None = None,
     experience_mode: str = "junior_only",
-    require_remote: bool = True,
+    preferred_office_cities: Iterable[str] | None = None,
     blocked_countries: Iterable[str] | None = None,
     allowed_regions: Iterable[str] | None = None,
+    require_remote: bool | None = None,
 ) -> bool:
-    """Filter a listing for remote junior/intern QA roles in allowed regions."""
+    """Filter a listing for junior/intern QA roles that fit a daily quota bucket."""
     if not matches_keywords(listing.role, keyword_re):
         return False
 
@@ -437,9 +480,10 @@ def keep_listing(
         workplace_type=workplace_type,
         country=country,
         india_aliases=india_aliases,
-        require_remote=require_remote,
+        preferred_office_cities=preferred_office_cities,
         blocked_countries=blocked_countries,
         allowed_regions=allowed_regions,
+        require_remote=require_remote,
     ):
         return False
 
@@ -448,5 +492,87 @@ def keep_listing(
         return not title_is_senior(listing.role)
     if mode == "exclude_senior":
         return not title_is_senior(listing.role)
-    # junior_only (preferred for 0-1 years + internships)
     return is_junior_role(listing.role, listing.description)
+
+
+def select_by_quotas(
+    listings: list[JobListing],
+    quotas: dict[str, int] | None = None,
+    *,
+    india_aliases: Iterable[str] | None = None,
+    preferred_office_cities: Iterable[str] | None = None,
+    blocked_countries: Iterable[str] | None = None,
+    allowed_regions: Iterable[str] | None = None,
+) -> list[JobListing]:
+    """Pick jobs using daily quotas: india_office, india_wfh, intl_wfh."""
+    limits = {
+        "india_office": 3,
+        "india_wfh": 2,
+        "intl_wfh": 5,
+    }
+    for key, value in (quotas or {}).items():
+        try:
+            limits[str(key)] = max(0, int(value))
+        except (TypeError, ValueError):
+            continue
+
+    buckets: dict[str, list[JobListing]] = {
+        "india_office": [],
+        "india_wfh": [],
+        "intl_wfh": [],
+    }
+    for listing in sorted(listings, key=rank_key):
+        bucket = classify_location_bucket(
+            listing.location,
+            india_aliases=india_aliases,
+            preferred_office_cities=preferred_office_cities,
+            blocked_countries=blocked_countries,
+            allowed_regions=allowed_regions,
+        )
+        if bucket in buckets:
+            buckets[bucket].append(listing)
+
+    selected: list[JobListing] = []
+    used: set[tuple[str, str, str]] = set()
+    for bucket_name in ("india_office", "india_wfh", "intl_wfh"):
+        taken = 0
+        limit = limits.get(bucket_name, 0)
+        for listing in buckets[bucket_name]:
+            if taken >= limit:
+                break
+            identity = listing.identity()
+            if identity in used:
+                continue
+            used.add(identity)
+            selected.append(listing)
+            taken += 1
+
+    return selected
+
+
+def _matches_preferred_city(text: str, preferred_office_cities: Iterable[str] | None) -> bool:
+    cities = [
+        str(city).strip().lower()
+        for city in (preferred_office_cities or [])
+        if str(city).strip()
+    ]
+    if not cities:
+        cities = [
+            "noida",
+            "gurgaon",
+            "gurugram",
+            "jaipur",
+            "lucknow",
+            "bhopal",
+            "pune",
+            "mumbai",
+            "kochi",
+            "cochin",
+            "hyderabad",
+            "amritsar",
+            "zirakpur",
+            "zirkarpur",
+            "varanasi",
+            "banaras",
+        ]
+    return any(re.search(rf"\b{re.escape(city)}\b", text) for city in cities)
