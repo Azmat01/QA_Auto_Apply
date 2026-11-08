@@ -4,6 +4,7 @@ import unittest
 
 from qa_auto_apply.filters import (
     compile_keyword_regex,
+    is_internship,
     is_junior_role,
     keep_listing,
     matches_location,
@@ -34,23 +35,17 @@ def _job(
 class KeywordFilterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.regex = compile_keyword_regex(
-            ["QA", "SDET", "Manual Tester", "QA Engineer", "Test Engineer"]
+            ["QA", "SDET", "Manual Tester", "QA Engineer", "Test Engineer", "QA Intern"]
         )
 
-    def test_matches_core_titles(self) -> None:
+    def test_matches_core_and_intern_titles(self) -> None:
         titles = [
             "QA Engineer",
-            "Senior SDET",
-            "Automation QA",
-            "Test Engineer - Platform",
-            "Software Development Engineer in Test",
-            "QA Automation Engineer",
-            "Staff Web Automation Engineer, Quality Engineering",
+            "QA Intern",
+            "Software Testing Intern",
+            "SDET Internship",
             "Manual Tester",
-            "Manual QA",
-            "QA Tester",
-            "Quality Analyst",
-            "Test Analyst",
+            "Test Engineer - Platform",
         ]
         for title in titles:
             with self.subTest(title=title):
@@ -63,6 +58,7 @@ class KeywordFilterTests(unittest.TestCase):
             "Sales Executive",
             "EQUAL Opportunity Specialist",
             "Senior IT Automation Engineer",
+            "Marketing Intern",
         ]
         for title in titles:
             with self.subTest(title=title):
@@ -70,7 +66,7 @@ class KeywordFilterTests(unittest.TestCase):
 
 
 class ExperienceFilterTests(unittest.TestCase):
-    def test_junior_titles(self) -> None:
+    def test_junior_and_intern_titles(self) -> None:
         titles = [
             "Junior QA Engineer",
             "QA Engineer Intern",
@@ -83,6 +79,11 @@ class ExperienceFilterTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertTrue(is_junior_role(title), title)
                 self.assertFalse(title_is_senior(title), title)
+
+    def test_internship_detection(self) -> None:
+        self.assertTrue(is_internship("QA Intern"))
+        self.assertTrue(is_internship("Test Engineer", "This is a 6-month internship."))
+        self.assertFalse(is_internship("QA Engineer", "Full-time role in quality."))
 
     def test_rejects_senior_titles(self) -> None:
         titles = [
@@ -120,57 +121,48 @@ class ExperienceFilterTests(unittest.TestCase):
 
 
 class LocationFilterTests(unittest.TestCase):
-    def test_india_and_remote(self) -> None:
-        self.assertTrue(matches_location("Bengaluru, India"))
-        self.assertTrue(matches_location("Remote - US"))
-        self.assertTrue(matches_location("Pune", workplace_type="hybrid"))
-        self.assertTrue(matches_location("San Francisco", workplace_type="remote"))
-        self.assertTrue(matches_location("", country="IN", workplace_type="on-site"))
-        self.assertTrue(matches_location("Hyderabad, IN"))
-        self.assertFalse(matches_location("San Francisco, CA"))
-        self.assertFalse(matches_location("London, United Kingdom"))
+    def test_requires_remote_wfh(self) -> None:
+        self.assertTrue(matches_location("Remote - US", require_remote=True))
+        self.assertTrue(matches_location("Work from home - India", require_remote=True))
+        self.assertTrue(matches_location("Remote Europe", require_remote=True))
+        self.assertTrue(matches_location("Remote - Dubai, UAE", require_remote=True))
+        self.assertTrue(matches_location("Remote - Singapore", require_remote=True))
+        self.assertTrue(matches_location("Remote - Sydney, Australia", require_remote=True))
+        self.assertFalse(matches_location("Bengaluru, India", require_remote=True))
+        self.assertFalse(matches_location("London, United Kingdom", require_remote=True))
+        self.assertFalse(matches_location("San Francisco, CA", require_remote=True))
 
-    def test_keep_listing_exclude_senior_default(self) -> None:
+    def test_blocks_pakistan_egypt_argentina(self) -> None:
+        self.assertFalse(matches_location("Remote - Pakistan", require_remote=True))
+        self.assertFalse(matches_location("WFH Cairo, Egypt", require_remote=True))
+        self.assertFalse(matches_location("Remote Argentina", require_remote=True))
+        self.assertFalse(matches_location("Remote - Buenos Aires", require_remote=True))
+
+    def test_keep_listing_remote_junior_intern(self) -> None:
         regex = compile_keyword_regex()
-        junior_remote = _job("Junior QA Engineer", "Remote")
-        mid_remote = _job("SDET", "Remote")
-        senior_india = _job("Senior QA Engineer", "Bengaluru, India")
-        junior_sf = _job("QA Intern", "San Francisco, CA")
-        india_pm = _job("Product Manager", "Bengaluru, India")
-
-        self.assertTrue(keep_listing(junior_remote, regex, experience_mode="exclude_senior"))
-        self.assertTrue(keep_listing(mid_remote, regex, experience_mode="exclude_senior"))
-        self.assertFalse(keep_listing(senior_india, regex, experience_mode="exclude_senior"))
-        self.assertFalse(keep_listing(junior_sf, regex, experience_mode="exclude_senior"))
-        self.assertFalse(keep_listing(india_pm, regex, experience_mode="exclude_senior"))
-
-    def test_keep_listing_junior_only_mode(self) -> None:
-        regex = compile_keyword_regex()
-        mid_remote = _job("SDET", "Remote")
-        desc_junior = _job(
-            "Manual Tester",
-            "Hyderabad, India",
-            description="0-1 years. Campus hiring for fresh graduates.",
-        )
-        self.assertFalse(keep_listing(mid_remote, regex, experience_mode="junior_only"))
-        self.assertTrue(keep_listing(desc_junior, regex, experience_mode="junior_only"))
-
-    def test_rank_prefers_title_junior_then_india(self) -> None:
-        title_india = _job("Junior QA Engineer", "Bengaluru, India", company="Okta")
-        desc_remote = _job(
+        remote_intern = _job("QA Intern", "Remote - Germany")
+        remote_junior = _job(
             "QA Engineer",
-            "Remote",
-            company="Stripe",
-            description="Entry-level, 0-1 years.",
+            "Remote - USA",
+            description="0-1 years experience. Entry-level.",
         )
-        title_remote = _job("QA Intern", "Remote", company="Postman")
-        ranked = sorted(
-            [desc_remote, title_remote, title_india],
-            key=rank_key,
-        )
-        self.assertEqual(ranked[0].role, "Junior QA Engineer")
-        self.assertEqual(ranked[1].role, "QA Intern")
-        self.assertEqual(ranked[2].role, "QA Engineer")
+        onsite_india = _job("QA Intern", "Bengaluru, India")
+        remote_pakistan = _job("QA Intern", "Remote - Pakistan")
+        senior_remote = _job("Senior QA Engineer", "Remote")
+        mid_remote = _job("SDET", "Remote")
+
+        self.assertTrue(keep_listing(remote_intern, regex, experience_mode="junior_only"))
+        self.assertTrue(keep_listing(remote_junior, regex, experience_mode="junior_only"))
+        self.assertFalse(keep_listing(onsite_india, regex, experience_mode="junior_only"))
+        self.assertFalse(keep_listing(remote_pakistan, regex, experience_mode="junior_only"))
+        self.assertFalse(keep_listing(senior_remote, regex, experience_mode="junior_only"))
+        self.assertFalse(keep_listing(mid_remote, regex, experience_mode="junior_only"))
+
+    def test_rank_prefers_internships(self) -> None:
+        intern = _job("QA Intern", "Remote", company="Stripe")
+        junior = _job("Junior QA Engineer", "Remote", company="Okta")
+        ranked = sorted([junior, intern], key=rank_key)
+        self.assertEqual(ranked[0].role, "QA Intern")
 
 
 if __name__ == "__main__":

@@ -95,8 +95,8 @@ def save_digest(
     ]
     if not jobs:
         lines.append(
-            "No matching QA Engineer / Manual Tester roles were found for India or Remote "
-            "on the configured Greenhouse/Lever company boards."
+            "No matching remote QA / Manual Tester / internship roles (0-1 years) were found "
+            "on the configured Greenhouse/Lever boards for allowed regions."
         )
     else:
         lines.extend(

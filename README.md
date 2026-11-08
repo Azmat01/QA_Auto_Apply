@@ -31,15 +31,14 @@ On Linux / macOS: `LOG_FORMAT=json python job_finder.py`
 
 ## How matching works
 
-- **Role:** QA Engineer, Manual Tester, QA Tester, Quality Analyst, Test Analyst, SDET, and related titles.
-- **Location:** India (including major cities) or Remote.
-- **Experience mode** (`config/settings.json` → `experience_mode`):
-  - `exclude_senior` (default): keep mid-level QA; drop Senior/Staff/Lead/Manager titles. Use this so the daily email is not empty.
-  - `junior_only`: require fresher/junior/0–1 year wording (often **0 results** on public US ATS boards).
-  - `any`: ignore experience wording.
-- **Cap:** Best 10 after ranking (junior-looking titles first, then India over generic remote).
+- **Role:** QA / Manual Tester / SDET titles, including **QA Intern** and testing internships.
+- **Experience:** `junior_only` — fresher, intern, 0–1 years (Senior/Staff/Lead dropped).
+- **Workplace:** **Remote / work-from-home only**.
+- **Regions:** Europe, Americas, Arabian/Gulf, South East Asia, South Asia, Australia (when a place is named).
+- **Blocked countries:** Pakistan, Egypt, Argentina (and major cities there).
+- **Cap:** Best 10 (internships ranked first).
 
-This script cannot search Naukri/LinkedIn/Indeed. It only reads public Greenhouse/Lever boards listed in `config/companies.json`.
+Configured in [`config/settings.json`](config/settings.json). This script cannot search Naukri/LinkedIn/Indeed — only public Greenhouse/Lever boards in `config/companies.json`.
 
 ## Configuration
 

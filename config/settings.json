@@ -14,11 +14,31 @@
     "Quality Analyst",
     "Test Analyst",
     "QA Engineer",
-    "QE"
+    "QE",
+    "QA Intern",
+    "Test Intern",
+    "Testing Intern",
+    "SDET Intern",
+    "Quality Intern",
+    "Internship"
   ],
-  "locations": [
-    "India",
-    "Remote"
+  "require_remote": true,
+  "blocked_countries": [
+    "Pakistan",
+    "Egypt",
+    "Argentina",
+    "PK",
+    "EG",
+    "AR"
+  ],
+  "allowed_regions": [
+    "europe",
+    "americas",
+    "arabian",
+    "middle_east",
+    "southeast_asia",
+    "south_asia",
+    "australia"
   ],
   "india_location_aliases": [
     "india",
@@ -48,9 +68,14 @@
     "mysuru",
     "ncr",
     "in-remote",
-    "remote-india"
+    "remote-india",
+    "bangladesh",
+    "sri lanka",
+    "nepal",
+    "maldives",
+    "bhutan"
   ],
-  "experience_mode": "exclude_senior",
+  "experience_mode": "junior_only",
   "max_results": 10,
   "request_timeout_seconds": 20,
   "max_retries": 3,
