@@ -101,12 +101,14 @@ Static SPA in [`docs/`](docs/): HTML, Tailwind (CDN), custom CSS, and vanilla JS
 
 ### How data flows
 
-The daily script does **not** write HTML. It emails / opens a GitHub issue from `output/jobs.json`, and (when configured) **upserts the same jobs into Supabase**. The Pages dashboard only reads Supabase — so if sync secrets are missing, you can get email with jobs while the website stays empty.
-
 ```text
-job_finder.py  →  email + GitHub issue
-               →  Supabase job_postings  →  GitHub Pages dashboard
+job_finder.py
+  → email + GitHub issue
+  → docs/data/jobs.json  (committed by Actions)  →  GitHub Pages dashboard
+  → optional Supabase sync (applied toggles / backup)
 ```
+
+The website reads **`docs/data/jobs.json` first**. Supabase is optional. If Actions secrets for Supabase are missing, email can still work and the Pages site still updates from the committed JSON feed.
 
 ### Setup
 

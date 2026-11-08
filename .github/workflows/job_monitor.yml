@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
   job_monitor:
-    name: Find junior QA jobs and notify
+    name: Find QA jobs, publish Pages feed, notify
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run job finder and sync to Supabase dashboard
+      - name: Run job finder (email + Pages feed + optional Supabase)
         env:
           LOG_FORMAT: json
           LOG_LEVEL: INFO
@@ -34,8 +34,7 @@ jobs:
           SUPABASE_TABLE: job_postings
         run: |
           if [ -z "${SUPABASE_URL}" ] || { [ -z "${SUPABASE_ANON_KEY}" ] && [ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]; }; then
-            echo "Warning: Supabase secrets missing. Email/issue will still run, but the GitHub Pages dashboard will stay empty."
-            echo "Add SUPABASE_URL and SUPABASE_ANON_KEY (or SUPABASE_SERVICE_ROLE_KEY) under Settings → Secrets → Actions."
+            echo "Supabase secrets missing — that is OK. GitHub Pages will still get docs/data/jobs.json."
           fi
           python job_finder.py --output-dir output
 
@@ -47,7 +46,20 @@ jobs:
             output/jobs.csv
             output/jobs.json
             output/digest.md
+            docs/data/jobs.json
           if-no-files-found: error
+
+      - name: Publish docs/data/jobs.json to GitHub Pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data/jobs.json
+          if git diff --staged --quiet; then
+            echo "Dashboard feed unchanged."
+            exit 0
+          fi
+          git commit -m "Update GitHub Pages job feed [skip ci]"
+          git push
 
       - name: Ensure QA-auto-apply label exists
         env:
@@ -55,7 +67,7 @@ jobs:
         run: |
           gh label create "QA-auto-apply" \
             --color "0E8A16" \
-            --description "Daily junior QA / Manual Tester digest" \
+            --description "Daily QA / Manual Tester digest" \
             || true
 
       - name: Open GitHub issue digest
@@ -88,8 +100,7 @@ jobs:
           LOG_FORMAT: json
         run: |
           if [ -z "${SMTP_USERNAME}" ] || [ -z "${SMTP_PASSWORD}" ]; then
-            echo "SMTP secrets are not configured. GitHub issue + assignment is the active notify channel."
-            echo "To also send Gmail, add SMTP_USERNAME and SMTP_PASSWORD (Gmail app password) repository secrets."
+            echo "SMTP secrets are not configured. GitHub issue + Pages feed are the active channels."
             exit 0
           fi
           export SMTP_HOST="${SMTP_HOST:-smtp.gmail.com}"

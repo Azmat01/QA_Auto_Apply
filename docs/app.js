@@ -2,6 +2,8 @@
   "use strict";
 
   const TABLE = (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.table) || "job_postings";
+  const STATIC_FEED = "./data/jobs.json";
+  const APPLIED_KEY = "qa-auto-apply-applied-ids";
 
   const state = {
     jobs: [],
@@ -10,6 +12,7 @@
     collapsed: new Set(),
     client: null,
     pendingIds: new Set(),
+    source: "static",
   };
 
   const els = {
@@ -32,11 +35,6 @@
     els.status.classList.remove("is-ready", "is-error");
     if (kind === "ready") els.status.classList.add("is-ready");
     if (kind === "error") els.status.classList.add("is-error");
-  }
-
-  function showSetupBanner(message) {
-    els.setup.classList.remove("hidden");
-    els.setup.innerHTML = message;
   }
 
   function hideTransient() {
@@ -62,15 +60,43 @@
       .replaceAll("'", "&#39;");
   }
 
+  function readAppliedMap() {
+    try {
+      return JSON.parse(localStorage.getItem(APPLIED_KEY) || "{}") || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeAppliedMap(map) {
+    localStorage.setItem(APPLIED_KEY, JSON.stringify(map));
+  }
+
   function normalizeJob(row) {
+    const id = String(row.id || row.url || crypto.randomUUID());
+    const appliedMap = readAppliedMap();
+    const fromStorage = Object.prototype.hasOwnProperty.call(appliedMap, id)
+      ? Boolean(appliedMap[id])
+      : null;
     return {
-      id: row.id,
-      title: row.title || "Untitled role",
-      url: row.url || "#",
-      description: row.description || "",
+      id,
+      title: row.title || row["Role"] || "Untitled role",
+      url: row.url || row["Application URL"] || "#",
+      description:
+        row.description ||
+        [row["Company Name"], row["Location"]].filter(Boolean).join(" · ") ||
+        "",
       date: row.date || row.created_at || null,
-      is_applied: Boolean(row.is_applied),
+      is_applied: fromStorage === null ? Boolean(row.is_applied) : fromStorage,
     };
+  }
+
+  function isPlaceholder(job) {
+    const url = String(job.url || "").toLowerCase();
+    const title = String(job.title || "").toLowerCase();
+    if (url.includes("example.com")) return true;
+    if (title.startsWith("no live junior")) return true;
+    return false;
   }
 
   function dateKey(value) {
@@ -118,10 +144,8 @@
   }
 
   function updateCounts() {
-    const todo = state.jobs.filter((j) => !j.is_applied).length;
-    const applied = state.jobs.filter((j) => j.is_applied).length;
-    els.countTodo.textContent = String(todo);
-    els.countApplied.textContent = String(applied);
+    els.countTodo.textContent = String(state.jobs.filter((j) => !j.is_applied).length);
+    els.countApplied.textContent = String(state.jobs.filter((j) => j.is_applied).length);
   }
 
   function renderJobCard(job) {
@@ -170,13 +194,12 @@
       els.emptyCopy.textContent =
         state.filter === "applied"
           ? "No applied jobs yet. Toggle a card in To Apply to move it here."
-          : "No junior QA / Manual Tester openings with real apply links right now. The daily script will add Greenhouse/Lever URLs when matches are found.";
+          : "No openings in the latest published feed. After the daily Action runs, docs/data/jobs.json updates and this page refreshes.";
       return;
     }
 
     els.empty.classList.add("hidden");
     const groups = groupByDate(jobs);
-
     els.board.innerHTML = groups
       .map(([key, items]) => {
         const collapsed = state.collapsed.has(key);
@@ -199,64 +222,99 @@
       .join("");
   }
 
+  async function fetchStaticJobs() {
+    const response = await fetch(`${STATIC_FEED}?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Could not load ${STATIC_FEED} (${response.status})`);
+    }
+    const payload = await response.json();
+    const rows = Array.isArray(payload.jobs) ? payload.jobs : [];
+    return rows.map(normalizeJob).filter((job) => !isPlaceholder(job) && job.url && job.url !== "#");
+  }
+
+  async function fetchSupabaseJobs() {
+    if (!state.client) return null;
+    const result = await Promise.race([
+      state.client
+        .from(TABLE)
+        .select("id, title, url, description, date, is_applied")
+        .order("date", { ascending: false }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Supabase timeout")), 8000)),
+    ]);
+    if (result.error) throw new Error(result.error.message);
+    return (result.data || []).map(normalizeJob).filter((job) => !isPlaceholder(job));
+  }
+
   async function fetchJobs() {
-    if (!state.client) return;
     els.loading.classList.remove("hidden");
     els.empty.classList.add("hidden");
     els.error.classList.add("hidden");
     setStatus("Loading…");
 
-    const { data, error } = await state.client
-      .from(TABLE)
-      .select("id, title, url, description, date, is_applied")
-      .order("date", { ascending: false });
-
-    if (error) {
-      showError(`Could not load jobs: ${error.message}`);
-      return;
+    let staticJobs = [];
+    let staticError = null;
+    try {
+      staticJobs = await fetchStaticJobs();
+    } catch (err) {
+      staticError = err;
     }
 
-    state.jobs = (data || [])
-      .map(normalizeJob)
-      .filter((job) => {
-        const url = String(job.url || "").toLowerCase();
-        const title = String(job.title || "").toLowerCase();
-        if (url.includes("example.com")) return false;
-        if (title.startsWith("no live junior")) return false;
-        return true;
-      });
+    let remoteJobs = null;
+    try {
+      remoteJobs = await fetchSupabaseJobs();
+    } catch {
+      remoteJobs = null;
+    }
+
+    // Prefer non-empty Supabase data; otherwise use the published GitHub Pages feed.
+    if (remoteJobs && remoteJobs.length) {
+      state.jobs = remoteJobs;
+      state.source = "supabase";
+    } else if (staticJobs.length) {
+      state.jobs = staticJobs;
+      state.source = "static";
+    } else if (staticError && !state.client) {
+      showError(String(staticError.message || staticError));
+      return;
+    } else {
+      state.jobs = [];
+      state.source = staticError ? "error" : "empty";
+    }
+
     setStatus(`${state.jobs.length} jobs`, "ready");
     render();
   }
 
   async function toggleApplied(id) {
     const job = state.jobs.find((item) => String(item.id) === String(id));
-    if (!job || !state.client || state.pendingIds.has(job.id)) return;
+    if (!job || state.pendingIds.has(job.id)) return;
 
     const next = !job.is_applied;
     state.pendingIds.add(job.id);
     render();
 
-    const { data, error } = await state.client
-      .from(TABLE)
-      .update({ is_applied: next })
-      .eq("id", job.id)
-      .select("id, title, url, description, date, is_applied")
-      .single();
+    // Always persist locally so the UI works without Supabase secrets.
+    const appliedMap = readAppliedMap();
+    appliedMap[job.id] = next;
+    writeAppliedMap(appliedMap);
+    job.is_applied = next;
 
-    state.pendingIds.delete(job.id);
-
-    if (error) {
-      setStatus("Update failed", "error");
-      render();
-      showError(`Could not update applied status: ${error.message}`);
-      return;
+    if (state.client && state.source === "supabase") {
+      try {
+        const { error } = await state.client
+          .from(TABLE)
+          .update({ is_applied: next })
+          .eq("id", job.id);
+        if (error) throw error;
+      } catch (err) {
+        setStatus("Saved locally", "ready");
+        state.pendingIds.delete(job.id);
+        render();
+        return;
+      }
     }
 
-    const updated = normalizeJob(data);
-    state.jobs = state.jobs.map((item) =>
-      String(item.id) === String(updated.id) ? updated : item
-    );
+    state.pendingIds.delete(job.id);
     setStatus("Saved", "ready");
     render();
   }
@@ -301,69 +359,37 @@
     });
   }
 
-  function normalizeSupabaseUrl(url) {
-    let value = String(url || "").trim();
-    // Common typo that broke the live dashboard: https//:host → https://host
-    value = value.replace(/^https\/\/:/i, "https://").replace(/^http\/\/:/i, "http://");
-    return value;
-  }
-
-  function isValidSupabaseUrl(url) {
-    try {
-      const parsed = new URL(url);
-      return parsed.protocol === "https:" && parsed.hostname.endsWith(".supabase.co");
-    } catch {
-      return false;
-    }
-  }
-
   function createClient() {
     const cfg = { ...(window.SUPABASE_CONFIG || {}) };
-    cfg.url = normalizeSupabaseUrl(cfg.url);
+    cfg.url = String(cfg.url || "")
+      .trim()
+      .replace(/^https\/\/:/i, "https://")
+      .replace(/^http\/\/:/i, "http://");
     window.SUPABASE_CONFIG = cfg;
-    if (!cfg.url || !cfg.anonKey) {
-      showSetupBanner(
-        `<strong>Connect Supabase.</strong> Set <code>url</code> and <code>anonKey</code> in
-        <code>docs/config.js</code> (see <code>config.example.js</code>), then run
-        <code>supabase/schema.sql</code> in the Supabase SQL editor.`
-      );
-      hideTransient();
-      els.empty.classList.remove("hidden");
-      els.emptyCopy.textContent = "Add your Supabase project credentials to load postings.";
-      setStatus("Setup needed", "error");
+
+    if (!cfg.url || !cfg.anonKey) return null;
+    try {
+      const parsed = new URL(cfg.url);
+      if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".supabase.co")) {
+        return null;
+      }
+    } catch {
       return null;
     }
-
-    if (!isValidSupabaseUrl(cfg.url)) {
-      showError(
-        `Invalid Supabase URL in config.js: "${cfg.url}". Expected https://YOUR_PROJECT.supabase.co`
-      );
-      return null;
-    }
-
     if (!window.supabase || typeof window.supabase.createClient !== "function") {
-      showError("Supabase JS SDK failed to load. Check your network or CDN.");
       return null;
     }
-
     try {
       return window.supabase.createClient(cfg.url, cfg.anonKey);
-    } catch (err) {
-      showError(`Could not create Supabase client: ${err?.message || err}`);
+    } catch {
       return null;
     }
   }
 
   function init() {
-    try {
-      bindEvents();
-      state.client = createClient();
-      if (!state.client) return;
-      setStatus("Connected", "ready");
-      fetchJobs();
-    } catch (err) {
-      showError(`Dashboard failed to start: ${err?.message || err}`);
-    }
+    bindEvents();
+    state.client = createClient();
+    fetchJobs();
   }
 
   init();

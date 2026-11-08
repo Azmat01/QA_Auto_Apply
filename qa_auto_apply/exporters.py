@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,6 +34,44 @@ def save_json(jobs: list[JobListing], path: Path) -> Path:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
     return path
+
+
+def save_dashboard_json(jobs: list[JobListing], path: Path) -> Path:
+    """Write the GitHub Pages dashboard feed (docs/data/jobs.json)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    today = datetime.now(timezone.utc).date().isoformat()
+    rows = []
+    for job in jobs:
+        title = job.role.strip() or "Untitled role"
+        if job.company:
+            title = f"{job.company} — {title}"
+        description = " | ".join(part for part in (job.location, job.description) if part)
+        apply_url = (job.application_url or "").strip()
+        rows.append(
+            {
+                "id": _stable_id(apply_url or title),
+                "title": title,
+                "url": apply_url,
+                "description": description[:4000],
+                "date": today,
+                "is_applied": False,
+            }
+        )
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "count": len(rows),
+        "source": "job_finder",
+        "jobs": rows,
+    }
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    return path
+
+
+def _stable_id(value: str) -> str:
+    digest = hashlib.sha1(value.encode("utf-8")).hexdigest()
+    return digest[:16]
 
 
 def save_digest(

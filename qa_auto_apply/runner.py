@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from qa_auto_apply.config import ROOT_DIR, load_companies, load_settings
-from qa_auto_apply.exporters import save_csv, save_digest, save_json
+from qa_auto_apply.exporters import save_csv, save_dashboard_json, save_digest, save_json
 from qa_auto_apply.filters import compile_keyword_regex, keep_listing, rank_key
 from qa_auto_apply import greenhouse, lever
 from qa_auto_apply.logging_setup import setup_logging
@@ -136,6 +136,7 @@ def run(argv: list[str] | None = None) -> int:
         label=notify_label,
         pool_size=len(matched),
     )
+    dashboard_path = save_dashboard_json(selected, ROOT_DIR / "docs" / "data" / "jobs.json")
 
     logger.info(
         "Wrote top %s of %s matches (mode=%s)",
@@ -147,6 +148,7 @@ def run(argv: list[str] | None = None) -> int:
     logger.info("CSV: %s", csv_path)
     logger.info("JSON: %s", json_path)
     logger.info("Digest: %s", digest_path)
+    logger.info("Dashboard feed: %s", dashboard_path)
     logger.info("Companies with hard failures: %s", errors)
 
     if not args.skip_supabase:

@@ -147,14 +147,14 @@
       </main>
 
       <footer class="border-t border-ink-900/10 py-8 text-center text-xs text-ink-500">
-        Hosted on GitHub Pages · Data from Supabase · Toggle updates
-        <code class="rounded bg-ink-900/5 px-1">is_applied</code>
-        in realtime
+        Hosted on GitHub Pages · Jobs from
+        <code class="rounded bg-ink-900/5 px-1">docs/data/jobs.json</code>
+        (daily Action) · Applied state saved in your browser
       </footer>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Inline config avoids stale cached config.js on GitHub Pages -->
+    <!-- Optional Supabase overlay; static docs/data/jobs.json is the source of truth for Pages -->
     <script>
       window.SUPABASE_CONFIG = {
         url: "https://gstjnmduuevtwlybaldm.supabase.co",
@@ -162,6 +162,6 @@
         table: "job_postings",
       };
     </script>
-    <script src="./app.js?v=20261029c"></script>
+    <script src="./app.js?v=20261108a"></script>
   </body>
 </html>
