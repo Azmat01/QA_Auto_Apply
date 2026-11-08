@@ -1,6 +1,6 @@
 # QA Auto Apply
 
-Python job finder that queries the **public** Greenhouse Job Board API and Lever Postings API for a configured list of companies, keeps **junior / fresher / entry-level / intern / 0–1 year** QA Engineer and Manual Tester roles in **India** or **Remote**, writes the **top 10** to CSV and JSON, and emails the apply URLs to `azmatsparrow@gmail.com`.
+Python job finder that queries the **public** Greenhouse Job Board API and Lever Postings API for a **configured company list** (not the whole internet), keeps QA Engineer / Manual Tester roles in **India** or **Remote**, drops Senior/Staff/Lead titles by default, writes the **top 10** to CSV and JSON, and emails the apply URLs to `azmatsparrow@gmail.com`.
 
 A GitHub Actions workflow (`.github/workflows/job_monitor.yml`) runs the finder every day, opens an issue labeled `QA-auto-apply`, and can email the digest.
 
@@ -33,8 +33,13 @@ On Linux / macOS: `LOG_FORMAT=json python job_finder.py`
 
 - **Role:** QA Engineer, Manual Tester, QA Tester, Quality Analyst, Test Analyst, SDET, and related titles.
 - **Location:** India (including major cities) or Remote.
-- **Experience:** Fresher, intern, trainee, junior, associate, entry-level, graduate/campus, 0–1 years, or 6 months — from the **title** or **job description**. Senior / Staff / Principal / Lead / Manager titles are dropped even if the body mentions an intern program.
-- **Cap:** Best 10 after ranking (title junior first, then India over generic remote).
+- **Experience mode** (`config/settings.json` → `experience_mode`):
+  - `exclude_senior` (default): keep mid-level QA; drop Senior/Staff/Lead/Manager titles. Use this so the daily email is not empty.
+  - `junior_only`: require fresher/junior/0–1 year wording (often **0 results** on public US ATS boards).
+  - `any`: ignore experience wording.
+- **Cap:** Best 10 after ranking (junior-looking titles first, then India over generic remote).
+
+This script cannot search Naukri/LinkedIn/Indeed. It only reads public Greenhouse/Lever boards listed in `config/companies.json`.
 
 ## Configuration
 

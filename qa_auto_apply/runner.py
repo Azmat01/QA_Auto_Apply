@@ -74,6 +74,7 @@ def run(argv: list[str] | None = None) -> int:
 
     keyword_re = compile_keyword_regex(settings.get("keywords") or [])
     india_aliases = settings.get("india_location_aliases") or []
+    experience_mode = str(settings.get("experience_mode") or "exclude_senior")
     max_results = max(1, int(settings.get("max_results") or 10))
     timeout = float(settings.get("request_timeout_seconds") or 20)
     max_retries = int(settings.get("max_retries") or 3)
@@ -84,6 +85,11 @@ def run(argv: list[str] | None = None) -> int:
         "max_retries": max_retries,
         "backoff_seconds": backoff,
         "user_agent": user_agent,
+    }
+    # Job-body fetch is only needed when we require junior wording in descriptions.
+    greenhouse_kwargs = {
+        **http_kwargs,
+        "include_content": experience_mode.strip().lower() == "junior_only",
     }
 
     matched: list[JobListing] = []
@@ -96,12 +102,12 @@ def run(argv: list[str] | None = None) -> int:
         name = str(company.get("name") or company.get("board_token") or "").strip()
         token = str(company.get("board_token") or "").strip()
         try:
-            listings = greenhouse.fetch_jobs(name, token, **http_kwargs)
+            listings = greenhouse.fetch_jobs(name, token, **greenhouse_kwargs)
         except Exception:
             errors += 1
             logger.exception("Unexpected Greenhouse error", extra={"company": name, "source": "greenhouse"})
             continue
-        _collect(listings, matched, seen, keyword_re, india_aliases)
+        _collect(listings, matched, seen, keyword_re, india_aliases, experience_mode)
         time.sleep(0.15)
 
     for company in companies.get("lever") or []:
@@ -115,7 +121,7 @@ def run(argv: list[str] | None = None) -> int:
             errors += 1
             logger.exception("Unexpected Lever error", extra={"company": name, "source": "lever"})
             continue
-        _collect(listings, matched, seen, keyword_re, india_aliases)
+        _collect(listings, matched, seen, keyword_re, india_aliases, experience_mode)
         time.sleep(0.15)
 
     matched.sort(key=lambda job: rank_key(job, india_aliases))
@@ -132,9 +138,10 @@ def run(argv: list[str] | None = None) -> int:
     )
 
     logger.info(
-        "Wrote top %s of %s junior matches",
+        "Wrote top %s of %s matches (mode=%s)",
         len(selected),
         len(matched),
+        experience_mode,
         extra={"matched": len(selected), "url": str(output_dir)},
     )
     logger.info("CSV: %s", csv_path)
@@ -148,8 +155,8 @@ def run(argv: list[str] | None = None) -> int:
             if synced:
                 logger.info("Dashboard sync: %s rows upserted into Supabase", synced)
         except SupabaseSyncError:
-            logger.exception("Supabase dashboard sync failed")
-            return 1
+            # Do not fail the daily email/digest when Supabase is unreachable.
+            logger.exception("Supabase dashboard sync failed; continuing with local digest/email")
 
     return _maybe_email(args.send_email, digest_path, notify_email, notify_label, selected)
 
@@ -185,7 +192,7 @@ def _maybe_email(
         send_digest_email(
             digest_path,
             to_address=notify_email,
-            subject=f"[{notify_label}] {len(jobs)} junior QA / Manual Tester jobs (India / Remote)",
+            subject=f"[{notify_label}] {len(jobs)} QA / Manual Tester jobs (India / Remote)",
             jobs=jobs,
         )
     except Exception:
@@ -200,9 +207,15 @@ def _collect(
     seen: set[tuple[str, str, str]],
     keyword_re,
     india_aliases,
+    experience_mode: str = "exclude_senior",
 ) -> None:
     for listing in listings:
-        if not keep_listing(listing, keyword_re, india_aliases=india_aliases):
+        if not keep_listing(
+            listing,
+            keyword_re,
+            india_aliases=india_aliases,
+            experience_mode=experience_mode,
+        ):
             continue
         identity = listing.identity()
         if identity in seen:
@@ -210,7 +223,7 @@ def _collect(
         seen.add(identity)
         matched.append(listing)
         logger.info(
-            "Matched junior job",
+            "Matched job",
             extra={
                 "company": listing.company,
                 "role": listing.role,

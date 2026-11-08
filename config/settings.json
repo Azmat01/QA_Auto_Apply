@@ -13,7 +13,8 @@
     "QA Tester",
     "Quality Analyst",
     "Test Analyst",
-    "QA Engineer"
+    "QA Engineer",
+    "QE"
   ],
   "locations": [
     "India",
@@ -49,6 +50,7 @@
     "in-remote",
     "remote-india"
   ],
+  "experience_mode": "exclude_senior",
   "max_results": 10,
   "request_timeout_seconds": 20,
   "max_retries": 3,

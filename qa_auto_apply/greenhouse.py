@@ -12,7 +12,7 @@ from qa_auto_apply.textutil import html_to_text
 
 logger = logging.getLogger("qa_auto_apply.greenhouse")
 
-GREENHOUSE_JOBS_URL = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
+GREENHOUSE_JOBS_URL = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs"
 
 
 def fetch_jobs(
@@ -23,6 +23,7 @@ def fetch_jobs(
     max_retries: int,
     backoff_seconds: float,
     user_agent: str,
+    include_content: bool = False,
 ) -> list[JobListing]:
     token = (board_token or "").strip()
     if not token:
@@ -30,6 +31,8 @@ def fetch_jobs(
         return []
 
     url = GREENHOUSE_JOBS_URL.format(token=quote(token, safe=""))
+    if include_content:
+        url = f"{url}?content=true"
     logger.info(
         "Fetching Greenhouse jobs for %s",
         company_name,

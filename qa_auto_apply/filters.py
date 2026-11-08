@@ -222,7 +222,15 @@ def keep_listing(
     workplace_type: str = "",
     country: str = "",
     india_aliases: Iterable[str] | None = None,
+    experience_mode: str = "exclude_senior",
 ) -> bool:
+    """Filter a listing.
+
+    experience_mode:
+      - junior_only: require fresher/junior/0-1y signals (often empty on public ATS boards)
+      - exclude_senior: keep mid-level QA; drop Senior/Staff/Lead/Manager titles (default)
+      - any: ignore experience wording
+    """
     if not matches_keywords(listing.role, keyword_re):
         return False
     if not matches_location(
@@ -232,4 +240,11 @@ def keep_listing(
         india_aliases=india_aliases,
     ):
         return False
-    return is_junior_role(listing.role, listing.description)
+
+    mode = (experience_mode or "exclude_senior").strip().lower()
+    if mode == "any":
+        return True
+    if mode == "junior_only":
+        return is_junior_role(listing.role, listing.description)
+    # exclude_senior (default)
+    return not title_is_senior(listing.role)

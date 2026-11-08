@@ -47,16 +47,17 @@ def save_digest(
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     scanned = pool_size if pool_size is not None else len(jobs)
     lines = [
-        f"# Junior QA / Manual Tester digest ({generated})",
+        f"# QA / Manual Tester digest ({generated})",
         "",
         f"- Label: `{label}`",
         f"- Notify: {email}",
-        f"- Listed: **{len(jobs)}** (top 10 of {scanned} junior matches)",
+        f"- Listed: **{len(jobs)}** (top 10 of {scanned} matches)",
         "",
     ]
     if not jobs:
         lines.append(
-            "No matching junior QA Engineer / Manual Tester roles were found for India or Remote."
+            "No matching QA Engineer / Manual Tester roles were found for India or Remote "
+            "on the configured Greenhouse/Lever company boards."
         )
     else:
         lines.extend(

@@ -130,25 +130,30 @@ class LocationFilterTests(unittest.TestCase):
         self.assertFalse(matches_location("San Francisco, CA"))
         self.assertFalse(matches_location("London, United Kingdom"))
 
-    def test_keep_listing_requires_role_location_and_junior(self) -> None:
+    def test_keep_listing_exclude_senior_default(self) -> None:
         regex = compile_keyword_regex()
         junior_remote = _job("Junior QA Engineer", "Remote")
         mid_remote = _job("SDET", "Remote")
         senior_india = _job("Senior QA Engineer", "Bengaluru, India")
         junior_sf = _job("QA Intern", "San Francisco, CA")
         india_pm = _job("Product Manager", "Bengaluru, India")
+
+        self.assertTrue(keep_listing(junior_remote, regex, experience_mode="exclude_senior"))
+        self.assertTrue(keep_listing(mid_remote, regex, experience_mode="exclude_senior"))
+        self.assertFalse(keep_listing(senior_india, regex, experience_mode="exclude_senior"))
+        self.assertFalse(keep_listing(junior_sf, regex, experience_mode="exclude_senior"))
+        self.assertFalse(keep_listing(india_pm, regex, experience_mode="exclude_senior"))
+
+    def test_keep_listing_junior_only_mode(self) -> None:
+        regex = compile_keyword_regex()
+        mid_remote = _job("SDET", "Remote")
         desc_junior = _job(
             "Manual Tester",
             "Hyderabad, India",
             description="0-1 years. Campus hiring for fresh graduates.",
         )
-
-        self.assertTrue(keep_listing(junior_remote, regex))
-        self.assertTrue(keep_listing(desc_junior, regex))
-        self.assertFalse(keep_listing(mid_remote, regex))
-        self.assertFalse(keep_listing(senior_india, regex))
-        self.assertFalse(keep_listing(junior_sf, regex))
-        self.assertFalse(keep_listing(india_pm, regex))
+        self.assertFalse(keep_listing(mid_remote, regex, experience_mode="junior_only"))
+        self.assertTrue(keep_listing(desc_junior, regex, experience_mode="junior_only"))
 
     def test_rank_prefers_title_junior_then_india(self) -> None:
         title_india = _job("Junior QA Engineer", "Bengaluru, India", company="Okta")
