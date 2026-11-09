@@ -1,15 +1,6 @@
 {
-  "generated_at": "2026-11-08T09:32:41.681593+00:00",
-  "count": 1,
+  "generated_at": "2026-11-09T09:58:52.741224+00:00",
+  "count": 0,
   "source": "job_finder",
-  "jobs": [
-    {
-      "id": "111aa74f9c77926a",
-      "title": "Discord — QA/DevOps Engineer",
-      "url": "https://job-boards.greenhouse.io/discord/jobs/8703614002",
-      "description": "Remote US",
-      "date": "2026-11-08",
-      "is_applied": false
-    }
-  ]
+  "jobs": []
 }
